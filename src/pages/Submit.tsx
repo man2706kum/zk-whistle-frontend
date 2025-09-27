@@ -99,6 +99,7 @@ const Submit = () => {
           org_type: formData.category,
           cid,
           ai_verification,
+          proof_content: proofContent,
         },
       });
 

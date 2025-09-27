@@ -9,7 +9,6 @@ import ky from 'ky';
 import { VerifierUrl } from "@/lib/constants";
 import { fromByteArray } from "base64-js";
 
-
 const pl = new ZKEmailProver("honk", 1);
 
 export type EMLPropReturn = {

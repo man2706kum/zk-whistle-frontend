@@ -61,7 +61,7 @@ const Submit = () => {
       if (formData.files.length > 0) {
         promises.push(lighthouseUpload(formData.files[0]))
         if (proofContent.length > 0) {
-        //  promises.push(zkPdf())
+         promises.push(zkPdf())
         }
       }
 

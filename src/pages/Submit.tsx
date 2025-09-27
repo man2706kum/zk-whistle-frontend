@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileText,  Lock, CheckCircle, Copy, ArrowRight, ArrowLeft, Users, Gavel, Shield, Newspaper } from "lucide-react";
+import { FileText,  Lock, CheckCircle, Copy, ArrowRight, ArrowLeft, Users, Gavel, Shield, Newspaper, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { StepIndicator } from "@/components/StepIndicator";
 import { EMLPropReturn, EMLUploadSection } from "@/components/EMLUploadSection";
@@ -28,7 +28,8 @@ const Submit = () => {
   const [submitted, setSubmitted] = useState(false);
   const [generatedVID, setGeneratedVID] = useState('');
   const [domain, setDomain] = useState('')
-  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [proofContent, setProofContent] = useState('')
   const { toast } = useToast();
   const wallet = Web3Wallet.getInstance();
 
@@ -47,7 +48,7 @@ const Submit = () => {
     { label: "Verify Email" },
     { label: "Submit Whistleblow" }
   ];
-  let currentStep = 0;
+  let currentStep = 1;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +93,13 @@ const Submit = () => {
       description: "Your Verification CID has been copied to clipboard",
     });
   };
+
+  async function onDebug() {
+    //TODO: SP1 Hook
+    // Substr: proofContent
+    // file: formData.files
+
+  }
 
   if (submitted) {
     return (
@@ -314,7 +322,18 @@ const Submit = () => {
               </div>
 
               {/* File Upload ( Coming Soon )*/}
-              {/* <div className="space-y-3">
+            <div className="space-y-3">
+                <Label className="text-lg font-medium text-white">Proof Content</Label>
+                <Textarea
+                  placeholder="Describe your whistleblow in detail. Avoid including your identity or personal info."
+                  rows={5}
+                  className="bg-[#0D1117] border-gray-700 text-white placeholder-gray-400 resize-none rounded-lg focus:border-[#3FB8AF] focus:ring-[#3FB8AF]/20"
+                  value={proofContent}
+                  onChange={e => setProofContent(e.target.value)}
+                  required
+                />
+              </div>
+            <div className="space-y-3">
                 <Label className="text-lg font-medium text-white flex items-center">
                   Upload Supporting Files (Coming Soon. . .)
                   <TooltipInfo
@@ -354,7 +373,17 @@ const Submit = () => {
                     </div>
                   )}
                 </div>
-              </div> */}
+              </div>
+              {/* Debug Button */}
+              <Button 
+                variant="outline" 
+                className="border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-white font-medium px-8 py-3 rounded-lg transition-all duration-200"
+                onClick={async () => {
+                    await onDebug();
+                }}
+              >
+                Debug
+              </Button>
 
               {/* Submit Button */}
               <div className="pt-2">

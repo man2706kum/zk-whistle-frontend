@@ -6,7 +6,8 @@ import { pluginNodePolyfill } from "@rsbuild/plugin-node-polyfill";
 export default defineConfig({
   plugins: [pluginNodePolyfill(), pluginReact()],
   server : {
-    port: 6000
+    host : "127.0.0.1",
+    port: 9010
   },
   html: {
     template: './index.html',

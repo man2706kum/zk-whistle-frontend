@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { FileText,  Lock, CheckCircle, Copy, ArrowRight, ArrowLeft, Users, Gavel, Shield, Newspaper, Upload } from "lucide-react";
+import { FileText, Lock, CheckCircle, Copy, ArrowRight, ArrowLeft, Users, Gavel, Shield, Newspaper, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { StepIndicator } from "@/components/StepIndicator";
 import { EMLPropReturn, EMLUploadSection } from "@/components/EMLUploadSection";
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Web3Wallet } from "@/utils/web3";
 import ky from "ky";
 import { gateway } from "@/lib/constants";
+import { lighthouseUpload } from "@/lib/lighthousehelper";
 
 
 const Submit = () => {
@@ -28,7 +29,7 @@ const Submit = () => {
   const [submitted, setSubmitted] = useState(false);
   const [generatedVID, setGeneratedVID] = useState('');
   const [domain, setDomain] = useState('')
-  const [emailVerified, setEmailVerified] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [proofContent, setProofContent] = useState('')
   const { toast } = useToast();
   const wallet = Web3Wallet.getInstance();
@@ -36,7 +37,7 @@ const Submit = () => {
   const categories = [
     "NGO", "Government", "Corporate"
   ];
-  
+
   const verifiedGroups = [
     { id: "public", name: "Public Feed", icon: Users, description: "Visible to all users" },
     { id: "journalists", name: "Investigative Journalists", icon: Newspaper, description: "42 verified reporters", comingSoon: true },
@@ -53,28 +54,67 @@ const Submit = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    //prepare payload
-    const response = await ky.post(`${gateway}/api/v1/proof`, {
-      method: "POST",
-      json: {
-        proof: generatedVID,
-        domain,
-        user_id: "0x",
-        title:formData.title,
-        content : formData.description,
-        org_type: formData.category,
-      },
-    });
+    try {
 
-    //send payload
-    console.log({response})
+      let promises = []
 
-    // Simulate submission process
-    setTimeout(() => {
+      if (formData.files.length > 0) {
+        promises.push(lighthouseUpload(formData.files[0]))
+        if (proofContent.length > 0) {
+        //  promises.push(zkPdf())
+        }
+      }
+
+     const results = await Promise.allSettled(promises);
+     let cid = "", ai_verification = false;
+      for (const result of results) {
+        if (result.status === "rejected") {
+          console.error("Error in processing:", result.reason);
+          continue
+        }
+     
+        switch (result.value.type) {
+          case "lighthouse":
+            cid = result.value.cid;
+            break;
+          case "zkPdf":
+            ai_verification = true
+            // const sp1Proof = result.value.data
+            // call to verifier
+            break;
+          default:
+            console.warn("Unknown result type:", result.value);
+        }
+
+      }
+
+      //prepare payload
+      const response = await ky.post(`${gateway}/api/v1/proof`, {
+        json: {
+          proof: generatedVID,
+          domain,
+          user_id: "0x",
+          title: formData.title,
+          content: formData.description,
+          org_type: formData.category,
+          cid,
+          ai_verification,
+        },
+      });
+
+      //send payload
+      console.log({ response })
+
+      // Simulate submission process
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setSubmitted(true);
+      }, 3000);
+    } catch (err) {
+      console.log(err)
       setIsSubmitting(false);
-      setSubmitted(true);
-    }, 3000);
+      setSubmitted(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,11 +134,26 @@ const Submit = () => {
     });
   };
 
-  async function onDebug() {
-    //TODO: SP1 Hook
-    // Substr: proofContent
-    // file: formData.files
+  async function zkPdf() {
+    try {
+      const buffer = await formData.files[0].arrayBuffer();
+      const uint8 = new Uint8Array(buffer);
 
+      const res = await ky.post("http://localhost:3001/prove", {
+        json: {
+          pdf_bytes: Array.from(uint8!),
+          page_number: 0,
+          offset: 0,
+          sub_string: proofContent,
+        },
+        timeout: false
+      });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const data = await res.json();
+      return { type: "zkPdf", data };
+    } catch (err) {
+      console.log(err)
+    }
   }
 
   if (submitted) {
@@ -111,7 +166,7 @@ const Submit = () => {
             </div>
             <h2 className="text-4xl font-bold mb-6 text-white">Submission Successful</h2>
             <p className="text-gray-100 mb-8 text-lg leading-relaxed">
-              Your disclosure has been encrypted and submitted to the network. 
+              Your disclosure has been encrypted and submitted to the network.
               It will be reviewed by our decentralized verification system.
             </p>
             <div className="bg-[#0D1117] p-6 rounded-lg border border-gray-700 mb-8">
@@ -140,8 +195,8 @@ const Submit = () => {
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-white font-medium px-8 py-3 rounded-lg transition-all duration-200"
                 onClick={() => {
                   setSubmitted(false);
@@ -165,9 +220,9 @@ const Submit = () => {
       <div className="min-h-screen bg-[#0D1117] flex flex-col justify-center">
         <div className="max-w-lg mx-auto w-full px-4 pt-8">
           <StepIndicator steps={steps} current={1} />
-          <EMLUploadSection 
-            onVerified={(e:EMLPropReturn ) => {
-              console.log({e});
+          <EMLUploadSection
+            onVerified={(e: EMLPropReturn) => {
+              console.log({ e });
               setGeneratedVID(e.vId)
               setDomain(e.domain)
 
@@ -176,7 +231,7 @@ const Submit = () => {
                 title: "Email Verified",
                 description: "Proceed to submit your whistleblow",
               });
-            }} 
+            }}
           />
         </div>
       </div>
@@ -240,11 +295,10 @@ const Submit = () => {
                   {verifiedGroups.map(group => (
                     <div
                       key={group.id}
-                      className={`p-4 rounded-lg border transition-all duration-200 group flex items-center relative ${
-                        formData.targetGroup === group.id
+                      className={`p-4 rounded-lg border transition-all duration-200 group flex items-center relative ${formData.targetGroup === group.id
                           ? "border-[#3FB8AF] bg-[#3FB8AF]/10"
                           : "border-gray-700 hover:border-gray-600"
-                      } ${group.comingSoon ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:scale-[1.02]"}`}
+                        } ${group.comingSoon ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:scale-[1.02]"}`}
                       onClick={() => !group.comingSoon && setFormData({ ...formData, targetGroup: group.id })}
                     >
                       <div className="flex items-center space-x-3">
@@ -274,11 +328,10 @@ const Submit = () => {
                     <Badge
                       key={category}
                       variant={formData.category === category ? "default" : "outline"}
-                      className={`cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 hover:scale-105 ${
-                        formData.category === category
+                      className={`cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 hover:scale-105 ${formData.category === category
                           ? "bg-[#3FB8AF] text-[#0D1117] shadow-lg"
                           : "border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
-                      }`}
+                        }`}
                       onClick={() => setFormData({ ...formData, category })}
                     >
                       {category}
@@ -294,7 +347,7 @@ const Submit = () => {
                   disabled
                   className="bg-[#0D1117] border-gray-700 text-white placeholder-gray-400 h-12 rounded-lg focus:border-[#3FB8AF] focus:ring-[#3FB8AF]/20"
                   value={domain}
-                  // onChange={e => setFormData({ ...formData, title: e.target.value })}
+                // onChange={e => setFormData({ ...formData, title: e.target.value })}
                 />
               </div>
 
@@ -322,23 +375,12 @@ const Submit = () => {
               </div>
 
               {/* File Upload ( Coming Soon )*/}
-            <div className="space-y-3">
-                <Label className="text-lg font-medium text-white">Proof Content</Label>
-                <Textarea
-                  placeholder="Describe your whistleblow in detail. Avoid including your identity or personal info."
-                  rows={5}
-                  className="bg-[#0D1117] border-gray-700 text-white placeholder-gray-400 resize-none rounded-lg focus:border-[#3FB8AF] focus:ring-[#3FB8AF]/20"
-                  value={proofContent}
-                  onChange={e => setProofContent(e.target.value)}
-                  required
-                />
-              </div>
-            <div className="space-y-3">
+              <div className="space-y-3">
                 <Label className="text-lg font-medium text-white flex items-center">
-                  Upload Supporting Files (Coming Soon. . .)
+                  Upload Supporting Proof
                   <TooltipInfo
                     text=""
-                    tooltip="Your files are encrypted and stored securely on IPFS. Remove personal info before uploading to stay anonymous."
+                    tooltip="Your files are encrypted and stored securely on Filecoin."
                   />
                 </Label>
                 <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-[#3FB8AF]/50 hover:bg-[#19202A] hover:scale-[1.02] transition-all duration-300 group bg-[#19202A]">
@@ -346,10 +388,10 @@ const Submit = () => {
                     <Upload className="h-8 w-8 text-[#3FB8AF]" aria-hidden />
                   </div>
                   <p className="text-gray-200 mb-4 text-base leading-relaxed">
-                    Drag files here or click "Choose Files" to attach relevant evidence.
+                    Drag files here or click "Choose File" to attach relevant evidence.
                   </p>
                   <Input
-                    
+                    accept=".pdf"
                     id="files"
                     type="file"
                     className="hidden"
@@ -373,17 +415,17 @@ const Submit = () => {
                   )}
                 </div>
               </div>
-              {/* Debug Button */}
-              <Button 
-                variant="outline" 
-                className="border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-white font-medium px-8 py-3 rounded-lg transition-all duration-200"
-                onClick={async () => {
-                    await onDebug();
-                }}
-              >
-                Debug
-              </Button>
-
+                   <div className="space-y-3">
+                <Label className="text-lg font-medium text-white">Exposed partial data</Label>
+                <Textarea
+                  placeholder="Exposed partial data from the uploaded proof pdf to verify authenticity (e.g. account number, transaction information, email address, etc.)"
+                  rows={5}
+                  className="bg-[#0D1117] border-gray-700 text-white placeholder-gray-400 resize-none rounded-lg focus:border-[#3FB8AF] focus:ring-[#3FB8AF]/20"
+                  value={proofContent}
+                  onChange={e => setProofContent(e.target.value)}
+                  required
+                />
+              </div>
               {/* Submit Button */}
               <div className="pt-2">
                 <Button
@@ -439,8 +481,8 @@ const Submit = () => {
                   />
                 </h4>
                 <p className="leading-relaxed">
-                  <TooltipInfo 
-                    text="Zero-knowledge proofs" 
+                  <TooltipInfo
+                    text="Zero-knowledge proofs"
                     tooltip="A cryptographic method that proves you have valid information without revealing your identity or the information itself."
                   /> keep your identity private — you cannot be identified from your submission.
                 </p>
@@ -455,8 +497,8 @@ const Submit = () => {
                 </h4>
                 <p className="leading-relaxed">
                   All files are uploaded to{" "}
-                  <TooltipInfo 
-                    text="IPFS" 
+                  <TooltipInfo
+                    text="IPFS"
                     tooltip="InterPlanetary File System - a distributed network that stores files permanently and makes them impossible to alter or delete."
                   /> for permanent, tamperproof archiving.
                 </p>

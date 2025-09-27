@@ -349,10 +349,9 @@ const Submit = () => {
                     Drag files here or click "Choose Files" to attach relevant evidence.
                   </p>
                   <Input
-                    disabled
+                    
                     id="files"
                     type="file"
-                    multiple
                     className="hidden"
                     onChange={handleFileUpload}
                   />

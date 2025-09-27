@@ -16,7 +16,8 @@ interface Tip {
   content: string;
   category: string;
   attestations: number;
-  domain : string
+  domain : string;
+  ai_comment : string;
 }
 
 const Feed = () => {
@@ -60,7 +61,8 @@ const Feed = () => {
         "category": s.org_type,
         "date": new Date(s.submission_date),
         "domain": s.domain,
-        "status" : "verified"
+        "status" : "verified",
+        "ai_comment" : s.ai_comment || ""
       }
     })
 
@@ -243,6 +245,7 @@ const Feed = () => {
                       <CardTitle className="text-white text-lg font-semibold">{tip.title}</CardTitle>
                       </div>
                       <p className="text-gray-300 leading-relaxed text-md">{tip.content}</p>
+                      <p className="text-gray-300 leading-relaxed text-sm">{tip.ai_comment}</p>
                       <div className="flex items-center justify-between pt-4 border-t border-gray-800">
                         <div className="flex space-x-3">
                           <Button
